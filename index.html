@@ -1,0 +1,212 @@
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Raycasting.js</title>
+    </head>
+    <body>
+        <canvas width="500" height="500"></canvas>
+    </body>
+</html>
+
+<script>
+    /*
+             ===============================================
+                             INITIALIZATION
+             ===============================================
+         */
+    const canvas = document.querySelector("canvas");
+    const ctx = canvas.getContext("2d");
+    const x = 500;
+    const y = 500;
+    let flag = false;
+
+    const mouse = {
+        x: undefined,
+        y: undefined,
+    };
+
+    canvas.addEventListener("mousemove", function (event) {
+        mouse.x = event.x;
+        mouse.y = event.y;
+    });
+
+    /*
+             ===============================================
+                             Helpers
+             ===============================================
+         */
+
+    const createVector = (x, y) => {
+        return {
+            x: x,
+            y: y,
+        };
+    };
+
+    /*
+             ===============================================
+                             RAYCASTING
+             ===============================================
+        */
+
+    class Ray {
+        constructor(pos, direction) {
+            this.pos = pos;
+            this.dir = direction;
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.moveTo(this.pos.x, this.pos.y);
+            ctx.lineTo(this.pos.x + this.dir.x * 10, this.pos.y + this.dir.y * 10);
+            ctx.strokeStyle = "white";
+            ctx.stroke();
+            ctx.closePath();
+        }
+
+        cast(wall) {
+            const x1 = wall.p_start.x;
+            const y1 = wall.p_start.y;
+            const x2 = wall.p_end.x;
+            const y2 = wall.p_end.y;
+
+            const x3 = this.pos.x;
+            const y3 = this.pos.y;
+            const x4 = this.pos.x + this.dir.x;
+            const y4 = this.pos.y + this.dir.y;
+
+            const den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+            if (den == 0) {
+                return;
+            }
+
+            const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den;
+            const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / den;
+
+            if (t > 0 && t < 1 && u > 0) {
+                const pt = createVector(x1 + t * (x2 - x1), y1 + t * (y2 - y1));
+                return pt;
+            }
+        }
+    }
+
+    class Light {
+        constructor() {
+            this.pos = createVector(x / 2, y / 2);
+
+            this.rays = [];
+            for (let i = 0; i < 360; i = i + 0.5) {
+                this.rays.push(new Ray(this.pos, createVector(Math.cos(i), Math.sin(i))));
+            }
+        }
+
+        look(mouseX, mouseY) {
+            this.pos.x = mouseX;
+            this.pos.y = mouseY;
+        }
+
+        draw() {
+            // draw cricle
+            ctx.beginPath();
+            ctx.arc(this.pos.x, this.pos.y, 10, 0, Math.PI * 2, false);
+            ctx.fillStyle = "white";
+            ctx.fill();
+            ctx.closePath();
+            this.rays.forEach((ray) => ray.draw());
+        }
+
+        cast(walls) {
+            for (let i = 0; i < this.rays.length; i++) {
+                const ray = this.rays[i];
+                const closest = {
+                    dist: Infinity,
+                    pt: undefined,
+                };
+
+                for (let j = 0; j < walls.length; j++) {
+                    const pt = ray.cast(walls[j]);
+                    if (pt) {
+                        const dist = Math.sqrt(Math.pow(pt.x - this.pos.x, 2) + Math.pow(pt.y - this.pos.y, 2));
+                        if (dist < closest.dist) {
+                            closest.dist = dist;
+                            closest.pt = pt;
+                        }
+                    }
+                }
+
+                if (closest.pt) {
+                    // line
+                    ctx.beginPath();
+                    ctx.moveTo(this.pos.x, this.pos.y);
+                    ctx.lineTo(closest.pt.x, closest.pt.y);
+                    ctx.strokeStyle = "white";
+                    ctx.stroke();
+                    ctx.closePath();
+
+                    // create shadow line for each ray
+                    ctx.beginPath();
+                    ctx.moveTo(closest.pt.x, closest.pt.y);
+                    ctx.lineTo(closest.pt.x + ray.dir.x * 9999, closest.pt.y + ray.dir.y * 9999);
+                    ctx.strokeStyle = "rgba(0,0,0,0.3)";
+                    ctx.stroke();
+                    ctx.closePath();
+                }
+            }
+        }
+    }
+
+    class Wall {
+        constructor(x1, y1, x2, y2) {
+            this.p_start = createVector(x1, y1);
+            this.p_end = createVector(x2, y2);
+        }
+
+        draw() {
+            ctx.beginPath();
+            ctx.moveTo(this.p_start.x, this.p_start.y);
+            ctx.lineTo(this.p_end.x, this.p_end.y);
+            ctx.strokeStyle = "white";
+            ctx.stroke();
+            ctx.closePath();
+        }
+    }
+
+    const light = new Light();
+
+    const walls = [];
+    for (let i = 0; i < 8; i++) {
+        const x1 = Math.floor(Math.random() * x);
+        const y1 = Math.floor(Math.random() * y);
+        const x2 = Math.floor(Math.random() * x);
+        const y2 = Math.floor(Math.random() * y);
+        walls.push(new Wall(x1, y1, x2, y2));
+    }
+
+    // animations goes here
+    const render = () => {
+        ctx.clearRect(0, 0, x, y);
+        light.draw();
+        walls.forEach((wall) => wall.draw());
+        light.cast(walls);
+        light.look(mouse.x, mouse.y);
+        requestAnimationFrame(render);
+    };
+    requestAnimationFrame(render);
+
+</script>
+
+<style>
+    *,
+    *::after,
+    *::before {
+        padding: 0;
+        margin: 0;
+    }
+    canvas {
+        width: 500px;
+        height: 500px;
+        background: rgb(50, 50, 50);
+    }
+</style>
